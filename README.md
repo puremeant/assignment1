@@ -7,8 +7,10 @@ The main goal is to:
 
 ## Data
 - Stock data: CRSP monthly returns (2017–2025)
+  From https://wrds-www.wharton.upenn.edu/pages/get-data/center-research-security-prices-crsp/annual-update/stock-version-2/monthly-stock-file/
+  Choose 'permno, ticker, mthcaldt, and mthret' as variables after reading variable description in Stock - Version 2 (CIZ)
 - Factor data: Fama-French 5 factors + Momentum (from Ken French Data Library)
-The stock dataset is automatically downloaded from Google Drive when running the code.
+  The stock dataset is automatically downloaded from Google Drive when running the code.
 
 ## Methodology
 ### Part A: Data Construction
