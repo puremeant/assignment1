@@ -122,17 +122,18 @@ for permno, one_stock in df_stockfac.groupby('permno'):
             'beta_cat': model.params['CAT']
         })
         
-beta_df = pd.DataFrame(results) 
+df_beta = pd.DataFrame(results) 
 
 
 # ---  Part B. 1. Cross-sectional Regression  --- #
 
-
+y = df_stockfac['excess_ret']
+beta_cols= ['beta_mkt', 'beta_smb', 'beta_hml','beta_rmw', 'beta_cma', 'beta_mom', 'beta_cat']
 
 # ---  Part B. 2. Four Specifications  --- #
 
-## Pooled OLS
-df_panel = pd.merge(df_stockfac, beta_df, on=['permno', 'date'], how='inner')
+## (a) Pooled OLS
+df_panel = pd.merge(df_stockfac, df_beta, on=['permno', 'date'], how='inner')
 beta_cols= ['beta_mkt', 'beta_smb', 'beta_hml','beta_rmw', 'beta_cma', 'beta_mom', 'beta_cat']
 reg_panel = df_panel[['excess_ret'] + beta_cols].dropna()
 
@@ -143,4 +144,33 @@ X = sm.add_constant(X)
 model_pooled = sm.OLS(Y, X).fit()
 print(model_pooled.summary())
 
-## Fama-MacBeth
+## (b) Fama-MacBeth
+lamda_values = []
+
+for t in range(1, len(df_stockfac)):
+    reg_data = df_stockfac.iloc[max(0, t-24):t].dropna()
+    Y = reg_panel['excess_ret']
+    X = reg_panel[['beta_mkt', 'beta_smb', 'beta_hml','beta_rmw', 'beta_cma', 'beta_mom', 'beta_cat']]
+    X = sm.add_constant(X)
+    model = sm.OLS(Y, X).fit()
+    lamda_values.append(model.params[1:])
+
+df_lamda = pd.DataFrame(lamda_values)
+lamda_mean = lamda_df.mean()
+newey_west_se = df_lamda.sem() * np.sqrt(len(df_lamda))
+
+print(lamda_mean)
+print(newey_west_se)
+
+## (c) Pooled OLS regression with date and stock fixed effects
+import statsmodels.formula.api as smf
+df_panel = pd.merge(df_stockfac, df_beta, on=['permno', 'date'], how='inner')
+beta_cols= ['beta_mkt', 'beta_smb', 'beta_hml','beta_rmw', 'beta_cma', 'beta_mom', 'beta_cat']
+reg_panel = df_panel[['excess_ret'] + beta_cols].dropna()
+
+Y = reg_panel['excess_ret']
+X = reg_panel[beta_cols]
+X = sm.add_constant(X)
+
+model_pooled = smf.ols('excess_ret ~ beta_mkt + beta_smb + beta_hml + beta_rmw + beta_cma + beta_mom + beta_cat + C(permno) + C(date)', data=reg_panel).fit()
+print(model_pooled.summary())
