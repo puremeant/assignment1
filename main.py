@@ -11,7 +11,7 @@ def winsorize_series(x):
     upper = x.quantile(0.99)
     return x.clip(lower, upper)
 
-# --- DATA SETTING STARTS --- #
+# ---  Part A. 1. DATA SETTING --- #
 
 # STOCK file #
 ## (Stock) Automatic downlaod of US stock file from Google Drive
@@ -52,8 +52,11 @@ df_stockfac = pd.merge(df_stock, df_facmom, on='date', how='inner')
 factor_cols = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'RF','Mom']
 df_stockfac[factor_cols] = df_stockfac[factor_cols] / 100
 
-# --- DATA SETTING ENDS --- #
-# excess return → winsorize → create CAT --- #
+
+
+# ---  Part A. 2. CAT --- #
+
+# excess return → winsorize → create CAT
 
 # Excess return 만들기 
 df_stockfac['RF']= pd.to_numeric(df_stockfac['RF'], errors='coerce')
@@ -75,4 +78,69 @@ cat['CAT'] = cat['L'] - cat['S']
 
 ## 다시 stockfac에 붙이기
 df_stockfac = df_stockfac.merge(cat['CAT'], on='date', how='left')
-df_stockfac.head()
+
+
+
+# ---  Part A. 3. REGRESSION --- #
+
+# regression 할수 있는 statsmodels 불러오고 results 에 쌓아 나가기
+import statsmodels.api as sm
+results = []
+factor_cols = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom', 'CAT']
+
+# 개별 주식별로 묶기
+for permno, one_stock in df_stockfac.groupby('permno'):
+    one_stock = one_stock.sort_values('date').reset_index(drop=True)
+
+    # Rolling: 24개월 채워지고 시작해야 하므로 t=24부터 즉 2019년 자료부터 롤링
+    for t in range (24, len(one_stock)):
+        current_date = one_stock.loc[t, 'date']             
+        window = one_stock.iloc[t-24:t]
+        reg_data = window[['excess_ret'] + factor_cols].dropna()
+
+        # 10개월 미만이면 skip
+        if len(reg_data) < 10:
+            continue
+
+        # 회귀
+        Y = reg_data['excess_ret']
+        X = reg_data[factor_cols]
+        X = sm.add_constant(X)
+
+        model = sm.OLS(Y, X).fit()
+
+        # 결과 저장
+        results.append({
+            'permno': permno,
+            'date': current_date,
+            'beta_mkt': model.params['Mkt-RF'],
+            'beta_smb': model.params['SMB'],
+            'beta_hml': model.params['HML'],
+            'beta_rmw': model.params['RMW'],
+            'beta_cma': model.params['CMA'],
+            'beta_mom': model.params['Mom'],
+            'beta_cat': model.params['CAT']
+        })
+        
+beta_df = pd.DataFrame(results) 
+
+
+# ---  Part B. 1. Cross-sectional Regression  --- #
+
+
+
+# ---  Part B. 2. Four Specifications  --- #
+
+## Pooled OLS
+df_panel = pd.merge(df_stockfac, beta_df, on=['permno', 'date'], how='inner')
+beta_cols= ['beta_mkt', 'beta_smb', 'beta_hml','beta_rmw', 'beta_cma', 'beta_mom', 'beta_cat']
+reg_panel = df_panel[['excess_ret'] + beta_cols].dropna()
+
+Y = reg_panel['excess_ret']
+X = reg_panel[beta_cols]
+X = sm.add_constant(X)
+
+model_pooled = sm.OLS(Y, X).fit()
+print(model_pooled.summary())
+
+## Fama-MacBeth
