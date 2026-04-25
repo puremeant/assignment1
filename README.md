@@ -1,3 +1,5 @@
+https://blog.naver.com/finance-student/223531926121
+
 ## Project Overview
 This project implements a seven-factor asset pricing model using U.S. stock data from 2017–2025.
 The main goal is to:
