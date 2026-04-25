@@ -1,8 +1,8 @@
-pandas
-numpy
-pandas-datareader
-gdown
-statsmodels
-scipy
-seaborn
-matplotlib
+pandas==2.2.2
+numpy==2.0.2
+pandas-datareader==0.10.0
+gdown==5.2.0
+statsmodels==0.14.6
+scipy==1.16.3
+seaborn==0.13.2
+matplotlib==3.10.0
