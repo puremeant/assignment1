@@ -15,11 +15,13 @@ def winsorize_series(x):
     upper = x.quantile(0.99)
     return x.clip(lower, upper)
 
+
 # ---  Part A. 1. DATA SETTING --- #
 
 # STOCK file #
+## The stock file is assumed to be pre-filtered to U.S. common stocks on NYSE/AMEX/NASDAQ
 ## (Stock) Automatic downlaod of US stock file from Google Drive
-!pip install gdown
+
 url = "https://drive.google.com/file/d/186hbPx4C3I7DefqLEvo2-HwlNkne3roC/view"
 gdown.download(url, "stock.csv", quiet=False, fuzzy=True)
 df_stock = pd.read_csv("stock.csv")
@@ -84,8 +86,6 @@ cat['CAT'] = cat['L'] - cat['S']
 ## Merge with a stockfac file
 df_stockfac = df_stockfac.merge(cat['CAT'], on='date', how='left')
 
-
-
 # ---  Part A. 3. REGRESSION --- #
 
 ## Store regression results incrementally in a 'results' column.
@@ -132,6 +132,9 @@ df_stockfac.to_pickle('./df_stockfac.pkl')
 
 ## For check: df_beta.head()
 
+
+
+
 # ---  Part B. 1. Cross-sectional Regression  --- #
 
 ## Set the dependent and independent variables
@@ -139,11 +142,9 @@ df_panel = pd.merge(df_stockfac, df_beta, on=['permno', 'date'], how='inner')
 beta_cols= ['beta_mkt', 'beta_smb', 'beta_hml','beta_rmw', 'beta_cma', 'beta_mom', 'beta_cat']
 reg_panel = df_panel[['date', 'permno', 'excess_ret'] + beta_cols].dropna()
 
-
 # ---  Part B. 2. Four Specifications  --- #
 
 ## (a) Pooled OLS
-
 y = reg_panel['excess_ret']
 X = reg_panel[beta_cols]
 X = sm.add_constant(X)
@@ -152,20 +153,19 @@ model_pooled = sm.OLS(y, X).fit()
 print(model_pooled.summary())
 
 ## (b) Fama-MacBeth
-### Since the Fama–MacBeth approach estimates a cross-sectional regression for each month, 
+### Since the Fama–MacBeth approach estimates a cross-sectional regression for each month,
 ### we need to group the panel by date and run OLS within each monthly cross-section.
 
 lambda_values = []
- 
-for month, month_data in reg_panel.groupby('date'):
 
+for month, month_data in reg_panel.groupby('date'):
     if len(month_data) <= len(beta_cols)+1:
         continue
 
     y = month_data['excess_ret']
     X = month_data[beta_cols]
     X = sm.add_constant(X)
-    
+
     model_FM = sm.OLS(y, X).fit()
     params = model_FM.params
     params.name = month #store lambda values for each month
@@ -179,7 +179,7 @@ df_lambda.index.name = 'date'
 ### That is, standard error is under-estimated and t-stat is over-estimated, since lambdas are actually correlated.
 ### To address this issue, use Newey-West corrected standard errors, getting standard errors for each lambda in each month.
 
-### autocovariance = 4 months 
+### autocovariance = 4 months
 ### (lag0: Var(λt), lag1: Cov(λt, λt-1), lag2: Cov(λt, λt-2), lag3: Cov(λt, λt-3), lag4: Cov(λt, λt-4)
 nw_lags = 4
 nw_results = []
@@ -196,7 +196,7 @@ for lambda_col in df_lambda.columns:
         'newey_west_se': model_NW.bse['const'],
         't_stat': model_NW.tvalues['const'],
         'p_value': model_NW.pvalues['const']})
-    
+
 nw_results = pd.DataFrame(nw_results)
 print(nw_results)
 
@@ -217,6 +217,9 @@ print(results_pooled_FE)
 results_pooled_FE_cluster = model_pooled_FE.fit(cov_type='clustered', cluster_entity=True, cluster_time=True)
 print(results_pooled_FE_cluster)
 
+
+
+
 # ---  Part C. 1. Sort stocks into 25 portfolios  --- #
 
 ## Choose HML as a second factor
@@ -228,18 +231,14 @@ df_port['hml_q'] = df_port.groupby('date')['beta_hml'].transform(lambda x: pd.qc
 # Numbering portfolio from 1 to 25
 df_port['portfolio_no'] = df_port['cat_q'] * 5 + df_port['hml_q'] + 1
 
-
-
 # ---  Part C. 2. Equal-weighted monthly excess returns  --- #
 
 ## Returns by portfolio
 port_returns = df_port.groupby(['date', 'portfolio_no'])['excess_ret'].mean().reset_index()
 
-
-
 # ---  Part C. 3. Time-series regression --- #
 
-## Create columns: date, 7 factors, 'port_returns' 
+## Create columns: date, 7 factors, 'port_returns'
 factor_cols = ['Mkt-RF','SMB','HML','RMW','CMA','Mom','CAT']
 df_ts = port_returns.merge(df_port[['date'] + factor_cols].drop_duplicates(), on='date', how='left')
 
@@ -250,18 +249,15 @@ for p, data in df_ts.groupby('portfolio_no'):
     X = sm.add_constant(data[factor_cols])
 
     model_ts = sm.OLS(y,X).fit()
-    ts_results.append({'portfolio_no': p, 
-                    'alpha': model_ts.params['const'], 
+    ts_results.append({'portfolio_no': p,
+                    'alpha': model_ts.params['const'],
                     'alpha_t': model_ts.tvalues['const']})
-    
+
 df_alpha = pd.DataFrame(ts_results)
 ## For check: df_alpha.head()
 
-
-
 # ---  Part C. 4. GRS TEST --- #
-
-# Test the joint null hypothesis that all 25 alphas are zero 
+# Test the joint null hypothesis that all 25 alphas are zero
 
 ## For same portfolio dates
 returns_wide = df_ts.pivot(index='date', columns='portfolio_no', values='excess_ret')
@@ -291,7 +287,6 @@ inv_sigma = np.linalg.pinv(sigma)
 inv_sigma_f = np.linalg.pinv(sigma_f)
 
 ## GRS statistics
-
 T = residuals.shape[1]
 N = residuals.shape[0]
 K = len(factor_cols)
@@ -306,8 +301,6 @@ GRS = float(GRS)
 from scipy.stats import f
 p_value = 1 - f.cdf(GRS, N, T-N-K)
 
-
-
 # ---  Part C. 5. Report --- #
 
 ## (a) GRS F-statistic and its p-value.
@@ -321,6 +314,7 @@ print("Average absolute alpha:", avg_abs_alpha)
 ## (c) a 5 by 5 heatmap
 ### Add portfolio information to an alpha dataframe
 df_alpha = df_alpha.merge(df_port[['portfolio_no', 'cat_q', 'hml_q']].drop_duplicates(), on='portfolio_no', how='left')
+
 ### pivot table
 heatmap_data = df_alpha.pivot(index='cat_q', columns='hml_q', values='alpha')
 heatmap_data = heatmap_data.sort_index().sort_index(axis=1)
@@ -332,15 +326,15 @@ plt.title("Alpha Heatmap (5X5 Portfolios)")
 plt.xlabel("HML Quintile")
 plt.ylabel("CAT Quintile")
 plt.show()
-
-
+plt.savefig("heatmap_7factor.png", dpi=300)
+plt.close()
 
 # ---  Part C. 6. Discuss --- #
-
+## No, the seven-factor model does not adequately price the cross-section of the 25 portfolios, as the intercepts are systematically different from zero, indicating persistent pricing errors.
+## The alpha heatmap shows that these errors are larger for portfolios with extreme CAT exposure, particularly in both the lowest and highest CAT quintiles.
+## This suggests that the model fails to capture variation along the CAT dimension. Additionally, some variation across HML quintiles indicates that value-related effects are not fully explained either.
 
 # ---  Part C. 7. Repeat with six factors without CAT --- #
-
-
 ## Time regression for six factors
 factor_cols_6 = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']
 
@@ -358,22 +352,23 @@ df_alpha_6 = pd.DataFrame(ts_results_6)
 
 ## GRS TEST for six factors
 returns_wide_6 = df_ts.pivot(index='date', columns='portfolio_no', values='excess_ret').dropna()
-factors_6 = df_ts[['date'] + factor_cols_6].drop_duplicates().set_index('date')
-factors_6 = factors_6.loc[returns_wide_6.index]
+factors_6 = df_ts[['date'] + factor_cols_6].drop_duplicates().set_index('date').loc[returns_wide_6.index]
 
 residuals_6 =[]
+alpha_list_6 =[]
+
 for p in returns_wide_6.columns:
     y = returns_wide_6[p]
     X = sm.add_constant(factors_6)
     model_r_6 = sm.OLS(y, X).fit()
+
     residuals_6.append(model_r_6.resid.values)
+    alpha_list_6.append(model_r_6.params['const'])
 residuals_6 = np.array(residuals_6)
+alpha_6 = np.array(alpha_list_6).reshape(-1,1) #alpha vector
 
 ## Stats for six factors
 sigma_6 = np.cov(residuals_6)
-alpha_6 = df_alpha_6['alpha_6'].values.reshape(-1,1) #alpha vector
-
-factors_6 = df_ts[factor_cols_6].drop_duplicates()
 mu_f_6 = factors_6.mean().values.reshape(-1,1) #mu vector
 sigma_f_6 = np.cov(factors_6.T) #covariance table
 
@@ -381,7 +376,6 @@ inv_sigma_6 = np.linalg.pinv(sigma_6)
 inv_sigma_f_6 = np.linalg.pinv(sigma_f_6)
 
 ## GRS statistics for six factors
-
 T_6 = residuals_6.shape[1]
 N_6 = residuals_6.shape[0]
 K_6 = len(factor_cols_6)
@@ -391,6 +385,10 @@ denominator_6 = 1 + mu_f_6.T @ inv_sigma_f_6 @ mu_f_6
 
 GRS_6 = ((T_6 - N_6 - K_6) / N_6) * (numerator_6 / denominator_6)
 GRS_6 = float(GRS_6)
+
+## Check GRS condition: T - N - K > 0
+print("7-factor:", "T=", T, "N=", N, "K=", K, "T-N-K=", T-N-K)
+print("6-factor:", "T=", T_6, "N=", N_6, "K=", K_6, "T-N-K=", T_6-N_6-K_6)
 
 ## p-value
 p_value_6 = 1 - f.cdf(GRS_6, N_6, T_6 - N_6 - K_6)
@@ -412,6 +410,9 @@ plt.title("6-factor Alpha Heatmap (5X5 Portfolios)")
 plt.xlabel("HML Quintile")
 plt.ylabel("CAT Quintile")
 plt.show()
+
+plt.savefig("heatmap_6factor.png", dpi=300)
+plt.close()
 
 
 # ======================
