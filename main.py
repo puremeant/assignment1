@@ -206,8 +206,8 @@ print(nw_results)
 ## (c) Pooled OLS with date and stock fixed effects
 ## similar to (a), but add C(permno) as fixed stock effect and C(date) as fixed date effect
 reg_panel_FE = reg_panel.copy()
-reg_panel_FE['date_str'] = reg_panel_FE['date'].astype(str)
-reg_panel_FE = reg_panel_FE.set_index(['permno', 'date_str'])
+reg_panel_FE['date_panel'] = reg_panel_FE['date'].dt.to_timestamp() #Period[M] to timestamp
+reg_panel_FE = reg_panel_FE.set_index(['permno', 'date_panel'])
 
 y = reg_panel_FE['excess_ret']
 X = reg_panel_FE[beta_cols]
