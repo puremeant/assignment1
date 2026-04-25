@@ -1,6 +1,8 @@
 pandas
 numpy
-requests
 pandas-datareader
-statsmodels
 gdown
+statsmodels
+scipy
+seaborn
+matplotlib
