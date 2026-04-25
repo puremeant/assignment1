@@ -3,3 +3,4 @@ numpy
 requests
 pandas-datareader
 statsmodels
+!pip install gdown
