@@ -219,7 +219,6 @@ model_pooled_FE_cluster = smf.ols('excess_ret ~ beta_mkt + beta_smb + beta_hml +
                                   ).fit(cov_type='cluster', cov_kwds= {'groups': reg_panel[['permno', 'date_str']]})
 print(model_pooled_FE_cluster.summary())
 
-
 # ---  Part C. 1. Sort stocks into 25 portfolios  --- #
 
 ## Choose HML as a second factor
@@ -268,11 +267,9 @@ df_alpha = pd.DataFrame(ts_results)
 
 ## residuals
 residuals =[]
-
 for p, data in df_ts.groupby('portfolio_no'):
     y = data['excess_ret']
     X = sm.add_constant(data[factor_cols])
-
     model_r = sm.OLS(y, X).fit()
     residuals.append(model_r.resid.values)
 residuals = np.array(residuals)
@@ -281,7 +278,7 @@ residuals = np.array(residuals)
 sigma = np.cov(residuals)
 alpha = df_alpha['alpha'].values.reshape(-1,1) #alpha vector
 
-factors = df_ts[factor_cols].drop_duplicates().sort_values('date')
+factors = df_ts[factor_cols].drop_duplicates()
 mu_f = factors.mean().values.reshape(-1,1) #mu vector
 sigma_f = np.cov(factors.T) #covariance table
 
@@ -321,6 +318,7 @@ print("Average absolute alpha:", avg_abs_alpha)
 df_alpha = df_alpha.merge(df_port[['portfolio_no', 'cat_q', 'hml_q']].drop_duplicates(), on='portfolio_no', how='left')
 ### pivot table
 heatmap_data = df_alpha.pivot(index='cat_q', columns='hml_q', values='alpha')
+heatmap_data = heatmap_data.sort_index().sort_index(axis=1)
 
 ### heat map
 plt.figure(figsize=(6,5))
@@ -333,3 +331,75 @@ plt.show()
 
 
 # ---  Part C. 6. Discuss --- #
+
+
+# ---  Part C. 7. Repeat with six factors without CAT --- #
+
+
+## Time regression for six factors
+factor_cols_6 = ['Mkt-RF', 'SMB', 'HML', 'RMW', 'CMA', 'Mom']
+
+ts_results_6 = []
+
+for p, data in df_ts.groupby('portfolio_no'):
+    y = data['excess_ret']
+    X = sm.add_constant(data[factor_cols_6])
+    model_ts_6 = sm.OLS(y, X).fit()
+
+    ts_results_6.append({'portfolio_no': p,
+                        'alpha_6': model_ts_6.params['const'],
+                        'alpha_t_6': model_ts_6.tvalues['const']})
+df_alpha_6 = pd.DataFrame(ts_results_6)
+
+## GRS TEST for six factors
+residuals_6 =[]
+for p, data in df_ts.groupby('portfolio_no'):
+    y = data['excess_ret']
+    X = sm.add_constant(data[factor_cols_6])
+    model_r_6 = sm.OLS(y, X).fit()
+    residuals_6.append(model_r_6.resid.values)
+residuals_6 = np.array(residuals_6)
+
+## Stats for six factors
+sigma_6 = np.cov(residuals_6)
+alpha_6 = df_alpha_6['alpha_6'].values.reshape(-1,1) #alpha vector
+
+factors_6 = df_ts[factor_cols_6].drop_duplicates()
+mu_f_6 = factors_6.mean().values.reshape(-1,1) #mu vector
+sigma_f_6 = np.cov(factors_6.T) #covariance table
+
+inv_sigma_6 = np.linalg.pinv(sigma_6)
+inv_sigma_f_6 = np.linalg.pinv(sigma_f_6)
+
+## GRS statistics for six factors
+
+T_6 = residuals_6.shape[1]
+N_6 = residuals_6.shape[0]
+K_6 = len(factor_cols_6)
+
+numerator_6 = alpha_6.T @ inv_sigma_6 @ alpha_6
+denominator_6 = 1 + mu_f_6.T @ inv_sigma_f_6 @ mu_f_6
+
+GRS_6 = ((T_6 - N_6 - K_6) / N_6) * (numerator_6 / denominator_6)
+GRS_6 = float(GRS_6)
+
+## p-value
+p_value_6 = 1 - f.cdf(GRS_6, N_6, T_6 - N_6 - K_6)
+print("6-factor GRS F-statistic:", GRS_6)
+print("6-factor p-value:", p_value_6)
+
+## The average absolute alphas for six factors
+avg_abs_alpha_6 = np.mean(np.abs(df_alpha_6['alpha_6']))
+print("6-factor Average absolute alpha:", avg_abs_alpha_6)
+
+## a 5 by 5 heatmap  for six factors
+df_alpha_6 = df_alpha_6.merge(df_port[['portfolio_no', 'cat_q', 'hml_q']].drop_duplicates(), on='portfolio_no', how='left')
+heatmap_data_6 = df_alpha_6.pivot(index='cat_q', columns='hml_q', values='alpha_6')
+heatmap_data_6 = heatmap_data_6.sort_index().sort_index(axis=1)
+
+plt.figure(figsize=(6,5))
+sns.heatmap(heatmap_data_6, annot=True, cmap='coolwarm', center=0)
+plt.title("6-factor Alpha Heatmap (5X5 Portfolios)")
+plt.xlabel("HML Quintile")
+plt.ylabel("CAT Quintile")
+plt.show()
