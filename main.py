@@ -9,6 +9,8 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import seaborn as sns
 import matplotlib.pyplot as plt
+!pip install linearmodels
+from linearmodels.panel import PanelOLS
 
 # Define a winsorizer function
 def winsorize_series(x):
@@ -202,22 +204,21 @@ nw_results = pd.DataFrame(nw_results)
 print(nw_results)
 
 ## (c) Pooled OLS with date and stock fixed effects
-
-y = reg_panel['excess_ret']
-X = reg_panel[beta_cols]
-X = sm.add_constant(X)
-
 ## similar to (a), but add C(permno) as fixed stock effect and C(date) as fixed date effect
-reg_panel['date_str'] = reg_panel['date'].astype(str) # Change 'date' from Period[M] to string type
-model_pooled_FE = smf.ols('excess_ret ~ beta_mkt + beta_smb + beta_hml + beta_rmw + beta_cma + beta_mom + beta_cat + C(permno) + C(date_str)', data=reg_panel).fit()
-print(model_pooled_FE.summary())
+reg_panel_FE = reg_panel.copy()
+reg_panel_FE['date_str'] = reg_panel_FE['date'].astype(str)
+reg_panel_FE = reg_panel_FE.set_index(['permno', 'date_str'])
 
+y = reg_panel_FE['excess_ret']
+X = reg_panel_FE[beta_cols]
+model_pooled_FE = PanelOLS(y, X, entity_effects=True, time_effects=True)
+
+results_pooled_FE = model_pooled_FE.fit()
+print(results_pooled_FE)
 
 ## (d) (c) with standard errors two-way clustered by date and stock
-### Considering both autocorrelation and cross-sectional correlation
-model_pooled_FE_cluster = smf.ols('excess_ret ~ beta_mkt + beta_smb + beta_hml + beta_rmw + beta_cma + beta_mom + beta_cat + C(permno) + C(date_str)', data=reg_panel
-                                  ).fit(cov_type='cluster', cov_kwds= {'groups': reg_panel[['permno', 'date_str']]})
-print(model_pooled_FE_cluster.summary())
+results_pooled_FE_cluster = model_pooled_FE.fit(cov_type='clustered', cluster_entity=True, cluster_time=True)
+print(results_pooled_FE_cluster)
 
 # ---  Part C. 1. Sort stocks into 25 portfolios  --- #
 
