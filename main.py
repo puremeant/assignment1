@@ -266,11 +266,18 @@ df_alpha = pd.DataFrame(ts_results)
 
 # Test the joint null hypothesis that all 25 alphas are zero 
 
+## For same portfolio dates
+returns_wide = df_ts.pivot(index='date', columns='portfolio_no', values='excess_ret')
+returns_wide = returns_wide.dropna()
+
+factors = df_ts[['date'] + factor_cols].drop_duplicates().set_index('date')
+factors = factors.loc[returns_wide.index]
+
 ## residuals
 residuals =[]
-for p, data in df_ts.groupby('portfolio_no'):
-    y = data['excess_ret']
-    X = sm.add_constant(data[factor_cols])
+for p in returns_wide.columns:
+    y = returns_wide[p]
+    X = sm.add_constant(factors)
     model_r = sm.OLS(y, X).fit()
     residuals.append(model_r.resid.values)
 residuals = np.array(residuals)
@@ -353,10 +360,14 @@ for p, data in df_ts.groupby('portfolio_no'):
 df_alpha_6 = pd.DataFrame(ts_results_6)
 
 ## GRS TEST for six factors
+returns_wide_6 = df_ts.pivot(index='date', columns='portfolio_no', values='excess_ret').dropna()
+factors_6 = df_ts[['date'] + factor_cols_6].drop_duplicates().set_index('date')
+factors_6 = factors_6.loc[returns_wide_6.index]
+
 residuals_6 =[]
-for p, data in df_ts.groupby('portfolio_no'):
-    y = data['excess_ret']
-    X = sm.add_constant(data[factor_cols_6])
+for p in returns_wide_6.columns:
+    y = returns_wide_6[p]
+    X = sm.add_constant(factors_6)
     model_r_6 = sm.OLS(y, X).fit()
     residuals_6.append(model_r_6.resid.values)
 residuals_6 = np.array(residuals_6)
@@ -404,3 +415,87 @@ plt.title("6-factor Alpha Heatmap (5X5 Portfolios)")
 plt.xlabel("HML Quintile")
 plt.ylabel("CAT Quintile")
 plt.show()
+
+
+# ======================
+# Output
+# ======================
+
+# --- Regression Table for Part B --- #
+
+def stars(p):
+    if p < 0.01:
+        return "***"
+    elif p < 0.05:
+        return "**"
+    elif p < 0.10:
+        return "*"
+    else:
+        return ""
+
+def coef_se(coef, se, p):
+    return f"{coef:.4f}{stars(p)}\n({se:.4f})"
+
+table = pd.DataFrame(index=beta_cols)
+
+# (a) Pooled OLS
+for var in beta_cols:
+    table.loc[var, 'Pooled OLS'] = coef_se(
+        model_pooled.params[var],
+        model_pooled.bse[var],
+        model_pooled.pvalues[var])
+
+# (b) Fama-MacBeth with Newey-West
+for var in beta_cols:
+    row = nw_results[nw_results['factor'] == var].iloc[0]
+    table.loc[var, 'Fama-MacBeth NW'] = coef_se(
+        row['lambda_mean'],
+        row['newey_west_se'],
+        row['p_value'])
+
+# (c) Two-way FE
+for var in beta_cols:
+    table.loc[var, 'Two-way FE'] = coef_se(
+        results_pooled_FE.params[var],
+        results_pooled_FE.std_errors[var],
+        results_pooled_FE.pvalues[var])
+
+# (d) Two-way FE + two-way clustered SE
+for var in beta_cols:
+    table.loc[var, 'Two-way FE + Cluster'] = coef_se(
+        results_pooled_FE_cluster.params[var],
+        results_pooled_FE_cluster.std_errors[var],
+        results_pooled_FE_cluster.pvalues[var])
+
+table.loc['N', 'Pooled OLS'] = int(model_pooled.nobs)
+table.loc['N', 'Fama-MacBeth NW'] = int(len(df_lambda))
+table.loc['N', 'Two-way FE'] = int(results_pooled_FE.nobs)
+table.loc['N', 'Two-way FE + Cluster'] = int(results_pooled_FE_cluster.nobs)
+
+table.loc['R2', 'Pooled OLS'] = f"{model_pooled.rsquared:.4f}"
+table.loc['R2', 'Fama-MacBeth NW'] = ""
+table.loc['R2', 'Two-way FE'] = f"{results_pooled_FE.rsquared:.4f}"
+table.loc['R2', 'Two-way FE + Cluster'] = f"{results_pooled_FE_cluster.rsquared:.4f}"
+
+print(table)
+table.to_excel("partB_regression_table.xlsx")
+
+
+# --- Summary statistics for CAT factor --- #
+
+factor_cols = ['Mkt-RF','SMB','HML','RMW','CMA','Mom','CAT']
+factors = df_stockfac[['date'] + factor_cols].drop_duplicates().set_index('date')
+
+# Summary
+cat_mean = factors['CAT'].mean()
+cat_std = factors['CAT'].std()
+summary_table = pd.DataFrame({'Mean': [cat_mean],'Std': [cat_std]}, index=['CAT'])
+
+# Correlation
+corr = factors.corr()
+cat_corr = corr.loc['CAT', ['Mkt-RF','SMB','HML','RMW','CMA','Mom']]
+corr_table = cat_corr.to_frame(name='Correlation with CAT')
+
+# Excel file
+combined = pd.concat([summary_table, corr_table.T], axis=1)
+combined.to_excel("CAT_summary.xlsx")
