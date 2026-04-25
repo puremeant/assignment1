@@ -1,11 +1,21 @@
-https://blog.naver.com/finance-student/223531926121
-
 ## Project Overview
 This project implements a seven-factor asset pricing model using U.S. stock data from 2017–2025.
 The main goal is to:
-- Construct the CAT factor (long C-tickers, short T-tickers)
-- Estimate rolling 24-month factor loadings
-- Test whether these factors explain cross-sectional stock returns
+- Construction of a custom CAT factor
+- Estimation of rolling betas (24-month window)
+- Cross-sectional regressions (Pooled OLS, Fama-MacBeth)
+- Portfolio sorting (5×5 portfolios based on CAT and HML betas)
+- Time-series regressions
+- GRS test (Gibbons, Ross, and Shanken, 1989)
+- Comparison between 7-factor and 6-factor models
+
+## Requirements
+Install dependencies using:
+pip install -r requirements.txt
+
+## How to Run
+1. Install dependencies: pip install -r requirements.txt
+2. Run the main script: python main.py
 
 ## Data
 - Stock data: CRSP monthly returns (2017–2025)
@@ -31,12 +41,15 @@ The main goal is to:
 - Run time-series regressions
 - Perform GRS test to evaluate model performance
 
-## How to Run
-1. Install dependencies: pip install -r requirements.txt
-2. Run the main script: python main.py
-
 ## Output
 - Regression results table
 - Summary statistics of CAT factor
-- GRS test results
+- Average absolute alpha across 25 portfolios
+- GRS F-statistic and p-value
 - 5x5 heatmap of portfolio alphas
+- Comparison between 7-factor and 6-factor models
+
+## Key Results Interpretation
+- GRS test evaluates whether all portfolio alphas are jointly zero
+- Lower average absolute alpha indicates better model fit
+- Heatmaps help identify which factor dimension is not fully captured
