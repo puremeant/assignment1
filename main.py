@@ -1,5 +1,4 @@
 import os
-import requests
 import pandas as pd
 import numpy as np
 import pandas_datareader.data as web
@@ -9,7 +8,6 @@ import statsmodels.api as sm
 import statsmodels.formula.api as smf
 import seaborn as sns
 import matplotlib.pyplot as plt
-!pip install linearmodels
 from linearmodels.panel import PanelOLS
 
 # Define a winsorizer function
