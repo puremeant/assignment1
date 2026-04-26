@@ -19,8 +19,10 @@ def winsorize_series(x):
 # ---  Part A. 1. DATA SETTING --- #
 
 # STOCK file #
-## The stock file is assumed to be pre-filtered to U.S. common stocks on NYSE/AMEX/NASDAQ
-## (Stock) Automatic downlaod of US stock file from Google Drive
+## CRSP monthly returns (2017–2025): Downloaded from https://wrds-www.wharton.upenn.edu/pages/get-data/center-research-security-prices-crsp/annual-update/stock-version-2/monthly-stock-file/
+### Choose 'permno, ticker, mthcaldt, and mthret' variables after reading variable descriptions in Stock - Version 2 (CIZ)
+### The stock file is assumed to be pre-filtered to U.S. common stocks on NYSE/AMEX/NASDAQ as described in WRDS
+### (Stock) Automatic downlaod of a US stock file from Google Drive
 
 url = "https://drive.google.com/file/d/186hbPx4C3I7DefqLEvo2-HwlNkne3roC/view"
 gdown.download(url, "stock.csv", quiet=False, fuzzy=True)
